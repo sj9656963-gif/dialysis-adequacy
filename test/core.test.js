@@ -261,3 +261,34 @@ test('HTML에 필수 표기(기준치·공식·출처·제작자) 포함', () =>
   assert.ok(text.includes('2006;48(Suppl 1):S2–S90'), 'KDOQI 2006 출처');
   assert.ok(!/https?:\/\/(fonts|cdn)/i.test(html), '외부 CDN 의존 없음(오프라인 동작)');
 });
+
+test('제수량(UF) 직접 입력: 소수 2자리 및 식염수 회수량 보정치 반영', () => {
+  // 전체중 62.5kg, 후체중 60.0kg -> 단순 체중차 2.50kg
+  // 종료 시 식염수 주입량 등을 고려해 기계 제수량 2.75L 직접 입력한 경우
+  const withManualUf = C.compute(Object.assign({}, base, { uf: '2.75' }));
+  assert.equal(withManualUf.wtDiff, 2.5);
+  assert.equal(withManualUf.uf, 2.75);
+  assert.equal(withManualUf.ufManual, true);
+  // Daugirdas 계산 시 2.75L 가 적용되었는지 확인
+  const expectedKtv = refKtv(70, 21, 4, 2.75, 60);
+  assert.ok(Math.abs(withManualUf.ktv - expectedKtv) < 1e-9);
+
+  // UF 미입력 시 단순 체중차(2.50) 자동 fallback 확인
+  const withoutManualUf = C.compute(Object.assign({}, base));
+  assert.equal(withoutManualUf.wtDiff, 2.5);
+  assert.equal(withoutManualUf.uf, 2.5);
+  assert.equal(withoutManualUf.ufManual, false);
+
+  // 소수점 쉼표(2자리) 허용 및 3자리 소수점 반올림
+  const commaUf = C.compute(Object.assign({}, base, { uf: '2,85' }));
+  assert.equal(commaUf.uf, 2.85);
+
+  const dot3Uf = C.compute(Object.assign({}, base, { uf: '2.825' }));
+  assert.equal(dot3Uf.uf, 2.83);
+
+
+  // UF 범위 초과 에러
+  const overUf = C.compute(Object.assign({}, base, { uf: '16.0' }));
+  assert.equal(overUf.errors.uf, C.MSG.uf);
+});
+
